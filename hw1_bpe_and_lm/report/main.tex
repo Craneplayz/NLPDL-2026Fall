@@ -1,0 +1,175 @@
+% modified from NeurIPS 2022 Latex template
+% authors: Yixin Zhu (yixin.zhu@pku.edu.cn), Liangru Xiang
+% v1.0: 2022.07.21
+
+\documentclass{article}
+\usepackage[final,nonatbib]{template22}
+\input{config.tex}
+\usepackage{listings}
+\definecolor{pythonkeyword}{HTML}{7C3AED}
+\definecolor{pythonstring}{HTML}{047857}
+\definecolor{pythoncomment}{HTML}{64748B}
+\definecolor{pythonbackground}{HTML}{FAF6ED}
+\lstdefinestyle{python}{
+  language=Python,
+  basicstyle=\small\ttfamily,
+  backgroundcolor=\color{pythonbackground},
+  keywordstyle=\color{pythonkeyword}\bfseries,
+  stringstyle=\color{pythonstring},
+  commentstyle=\color{pythoncomment}\itshape,
+  morekeywords={print,chr},
+  showstringspaces=false,
+  columns=fullflexible,
+  breaklines=true
+}
+\usepackage[style=apa,backend=biber,natbib=true,backref=false]{biblatex}
+\addbibresource{reference.bib}
+\newif\ifhascitations
+\AtEveryCitekey{\global\hascitationstrue}
+
+\title{Homework 1: Byte-Pair Encoding and Language Model}
+
+\author{%
+  Koh Zhi Xiang\\
+  Yuanpei College\\
+  Peking University\\
+  \texttt{2300094603@stu.pku.edu.cn} \\
+}
+
+\begin{document}
+\maketitle
+
+\section*{2 Byte-Pair Encoding (BPE) Tokenizer}
+\label{sec:bpe}
+
+\subsection*{2.1 Understanding Unicode}
+
+\begin{enumerate}[label=(\alph*), leftmargin=*]
+  \item \texttt{\textbackslash x00} (NUL byte).
+  \item The printed representation is empty compared to that of subproblem (a).
+  \item
+\begin{lstlisting}[style=python]
+>>> "this is a test" + chr(0) + "string"
+'this is a test\x00string'
+>>> print("this is a test" + chr(0) + "string")
+this is a teststring
+\end{lstlisting}
+\end{enumerate}
+
+\subsection*{2.2 Unicode Encodings}
+
+\begin{enumerate}[label=(\alph*), leftmargin=*]
+  \item UTF-16/32 introduce redundant \texttt{\textbackslash x00} byte when encoding common characters (prefix in BE variant), resulting in large byte sequences than UTF-8. This increase storage and preprocessing costs.
+  \item The function did not consider characters encoded by more than one byte (\texttt{chr(x)} where \texttt{x} is larger than 127). It returns \textit{'utf-8' codec can't decode byte 0xc2 in position 0: unexpected end of data} \texttt{UnicodeDecodeError}.
+  \item \texttt{\textbackslash x00 \textbackslash x00}
+\end{enumerate}
+
+\subsection*{2.3 Subword Tokenization and BPE Tokeniser}
+
+\subsection*{2.4 Experimenting with BPE Tokenizer Training}
+
+\section*{4 LM Training}
+
+\subsection*{4.2 Implementing SGD in PyTorch}
+
+\begin{table}[htbp]
+  \centering
+  \small
+  \caption{Training loss at each iteration for three initial learning rates.}
+  \label{tab:sgd-learning-rates}
+  \begin{tabular}{@{}rrrr@{}}
+    \toprule
+    Iteration $t$ & $\alpha = 10$ & $\alpha = 100$ & $\alpha = 1000$ \\
+    \midrule
+    0 & 21.39 & 20.53 & 26.84 \\
+    1 & 13.69 & 20.53 & 9689 \\
+    2 & 10.09 & 3.523 & $1.673 \times 10^{6}$ \\
+    3 & 7.895 & 0.08432 & $1.861 \times 10^{8}$ \\
+    4 & 6.395 & $1.595 \times 10^{-16}$ & $1.508 \times 10^{10}$ \\
+    5 & 5.302 & $1.778 \times 10^{-18}$ & $9.516 \times 10^{11}$ \\
+    6 & 4.472 & $5.988 \times 10^{-20}$ & $4.885 \times 10^{13}$ \\
+    7 & 3.821 & $3.567 \times 10^{-21}$ & $2.102 \times 10^{15}$ \\
+    8 & 3.300 & $3.060 \times 10^{-22}$ & $7.747 \times 10^{16}$ \\
+    9 & 2.875 & $3.400 \times 10^{-23}$ & $2.488 \times 10^{18}$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Clearly, this shows that $\alpha=100$ converges faster than $\alpha=10$, while $\alpha=1000$ diverges.
+
+\clearpage
+\subsection*{4.3 AdamW}
+
+Let $B,T,V,L,d,h$ denote batch size, context length, vocabulary size, layer count, model width and head count. Set $d_{\mathrm{ff}}=4d$. Each float32 element occupies 4 bytes; $1\,\mathrm{GB}=10^9$ bytes.
+
+\paragraph{(a) Memory.}
+The two embedding matrices, attention projections, three SwiGLU matrices and RMSNorm gains give
+\[
+P=2Vd+L\bigl(4d^2+12d^2+2d\bigr)+d=2Vd+L(16d^2+2d)+d.
+\]
+Parameter, gradient and Adam-state memory are, respectively,
+\[
+M_{\mathrm{param}}=4P,\qquad M_{\mathrm{grad}}=4P,\qquad M_{\mathrm{Adam}}=8P
+\quad\text{bytes}.
+\]
+Counting the listed activation outputs once gives:
+\begin{center}
+\small
+\begin{tabular}{@{}lr@{}}
+\toprule
+Component & Float32 elements \\
+\midrule
+Two RMSNorms per block & $2BTd$ \\
+$\mathbf{Q}$, $\mathbf{K}$, $\mathbf{V}$, weighted values and output projection per block & $5BTd$ \\
+Attention scores and softmax probabilities per block & $2BhT^2$ \\
+SwiGLU: $\mathbf{W}_1\mathbf{x}$, SiLU, $\mathbf{W}_3\mathbf{x}$, gating product and $\mathbf{W}_2$ output & $17BTd$ \\
+\midrule
+Final RMSNorm & $BTd$ \\
+Logits & $BTV$ \\
+Cross-entropy: negative log probabilities and token losses & $BTV+BT$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+Thus $A=BT[L(24d+2hT)+d+2V+1]$ and $M_{\mathrm{act}}=4A$ bytes, giving
+\[
+M_{\mathrm{peak}}\approx16P+4A\quad\text{bytes}.
+\]
+
+\paragraph{(b) GPT-2 XL.}
+Using $(V,T,L,d,h)=(50{,}257,1024,48,1600,25)$,\footnote{Model configuration: \url{https://huggingface.co/openai-community/gpt2-xl/blob/main/config.json}.}
+\[
+P=2{,}127{,}057{,}600,\qquad A=4{,}508{,}584{,}960\,B.
+\]
+Parameters and gradients each occupy $8.508$ GB, and Adam states occupy $17.02$ GB. The total is
+\begin{align*}
+M_{\mathrm{peak}}(B)
+ &= (18.03433984B+34.0329216)\,\mathrm{GB}\approx(18.03B+34.03)\,\mathrm{GB},\\
+B_{\max}
+ &=\left\lfloor\frac{80-34.0329216}{18.03433984}\right\rfloor
+ =2.
+\end{align*}
+Batch sizes 2 and 3 require $70.10$ GB and $88.14$ GB, respectively.
+
+\paragraph{(c) AdamW FLOPs.}
+Count each scalar arithmetic operation and square root as one FLOP, with scalar coefficients precomputed. Per parameter, updating $\mathbf{m}$ costs 3 FLOPs, updating $\mathbf{v}$ costs 4, the adaptive parameter update costs 5, and weight decay costs 2. Hence
+\[
+F_{\mathrm{AdamW}}\approx(3+4+5+2)P=14P
+\]
+FLOPs per update, giving $2.978\times10^{10}$ FLOPs for (b).
+
+\paragraph{(d) Training time.}
+Count dense matrix products at $2mkn$ FLOPs. Per block, $\mathbf{Q}$, $\mathbf{K}$, $\mathbf{V}$ and output projections cost $8BTd^2$ FLOPs, attention products $4BT^2d$, the three SwiGLU projections $24BTd^2$, and gating $4BTd$. Adding the vocabulary projection gives
+\[
+F_{\mathrm{fwd}}\approx BT\bigl[L(32d^2+4Td+4d)+2dV\bigr].
+\]
+For $B=1024$, $F_{\mathrm{fwd}}\approx4.622\times10^{15}$ FLOPs. Backward costs twice forward, so each training step requires approximately $3F_{\mathrm{fwd}}=1.387\times10^{16}$ model FLOPs. The effective rate at 50\% MFU is $9.75\times10^{12}$ FLOPs/s. Thus
+\[
+\text{time}\approx
+\frac{400{,}000\times3F_{\mathrm{fwd}}}{9.75\times10^{12}\times86{,}400}
+=6.584\times10^3\ \text{days}\approx18.04\ \text{years}.
+\]
+An effective batch of 1024 can use gradient accumulation over 512 microbatches of size 2.
+
+\ifhascitations\printbibliography\fi
+
+\end{document}

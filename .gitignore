@@ -206,3 +206,16 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# HW1 local datasets and LaTeX build intermediates
+/hw1_bpe_and_lm/data/
+/hw1_bpe_and_lm/report/*.aux
+/hw1_bpe_and_lm/report/*.bbl
+/hw1_bpe_and_lm/report/*.bcf
+/hw1_bpe_and_lm/report/*.blg
+/hw1_bpe_and_lm/report/*.brf
+/hw1_bpe_and_lm/report/*.fdb_latexmk
+/hw1_bpe_and_lm/report/*.fls
+/hw1_bpe_and_lm/report/*.out
+/hw1_bpe_and_lm/report/*.run.xml
+/hw1_bpe_and_lm/report/*.xdv
